@@ -50,23 +50,24 @@ void SteadystateProblem::workSteadyStateProblem(ReturnData *rdata,
         applyNewtonsMethod(rdata, model, newtonSolver.get(), 1);
         newton_status = NewtonStatus::newt;
     } catch(NewtonFailure const& ex) {
-        try {
-            /* Newton solver did not work, so try a simulation */
+      newton_status = NewtonStatus::failed;
+/*        try {
+            // Newton solver did not work, so try a simulation
             if (it<1) {
                 std::unique_ptr<CVodeSolver> newtonSimSolver;
-                /* Preequilibration: Create a new CVode object for simulation */
+                // Preequilibration: Create a new CVode object for simulation
                 *t = model->t0();
                 newtonSimSolver = createSteadystateSimSolver(solver, model, *t);
                 getSteadystateSimulation(rdata, newtonSimSolver.get(), model, it);
             } else {
-                /* Carry on simulating from last point */
+                // Carry on simulating from last point
                 *t = model->t(it-1);
                 getSteadystateSimulation(rdata, solver, model, it);
             }
             newton_status = NewtonStatus::newt_sim;
         } catch(AmiException const& ex) {
-            /* may be integration failure from AmiSolve, so NewtonFailure
-               won't do for all cases */
+            // may be integration failure from AmiSolve, so NewtonFailure
+            // won't do for all cases
             try {
                 applyNewtonsMethod(rdata, model, newtonSolver.get(), 2);
                 newton_status = NewtonStatus::newt_sim_newt;
@@ -74,6 +75,7 @@ void SteadystateProblem::workSteadyStateProblem(ReturnData *rdata,
                 throw amici::IntegrationFailure(ex.error_code,*t);
             }
         }
+*/
     } catch(...) {
         throw AmiException("Internal error in steady state problem");
     }
