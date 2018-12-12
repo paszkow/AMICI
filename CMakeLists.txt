@@ -47,6 +47,9 @@ set(SUNDIALS_LIBRARIES ${SUNDIALS_LIB_DIR}/libsundials_nvecserial${CMAKE_STATIC_
     )
 set(SUNDIALS_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/ThirdParty/sundials/include")
 
+set(Eigen3_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/eigen")
+set(EIGEN3_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/eigen")
+
 # AMICI requires BLAS, currently Intel MKL, CBLAS or MATLAB BLAS can be used.
 # The latter is not supported via CMake yet.
 set(BLAS "CBLAS" CACHE STRING "BLAS library to use")
@@ -99,6 +102,7 @@ target_include_directories(${PROJECT_NAME}
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     PUBLIC swig
+    PUBLIC ${EIGEN3_INCLUDE_DIR}
     PUBLIC ${SUNDIALS_INCLUDE_DIRS}
     PUBLIC ${SUITESPARSE_INCLUDE_DIRS}
     PUBLIC ${HDF5_INCLUDE_DIRS}
