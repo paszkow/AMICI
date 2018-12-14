@@ -178,7 +178,7 @@ void Solver::wrapErrHandlerFn(int error_code, const char *module,
         break;
     }
 
-    warnMsgIdAndTxt(buffid, buffer);
+    // warnMsgIdAndTxt(buffid, buffer);
 }
     
 void Solver::getDiagnosis(const int it, ReturnData *rdata) const {
