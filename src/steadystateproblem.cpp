@@ -202,7 +202,10 @@ void SteadystateProblem::applyNewtonsMethod(ReturnData *rdata,
             }
         } else {
             /* Reduce dampening factor */
-            gamma = (gamma < 1e-6 ? 1e-6 : gamma / 4.0);
+            gamma = gamma / 4.0;
+            if (gamma < 1e-6)
+              break;
+
             /* No new linear solve, only try new dampening */
             compNewStep = FALSE;
         }
