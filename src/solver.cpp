@@ -493,6 +493,14 @@ bool Solver::getNewtonPreequilibration() const {
 void Solver::setNewtonPreequilibration(bool newton_preeq) {
     this->newton_preeq = newton_preeq;
 }
+
+void Solver::setNewtonDampingFactor(bool newton_df) {
+    this->newton_damping_factor = newton_df;
+}
+
+bool Solver::getNewtonDampingFactor() const {
+    return this->newton_damping_factor;
+}
     
 int Solver::getNewtonMaxLinearSteps() const {
     return newton_maxlinsteps;

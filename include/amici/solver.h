@@ -61,6 +61,7 @@ class Solver {
         newton_maxsteps = other.newton_maxsteps;
         newton_maxlinsteps = other.newton_maxlinsteps;
         newton_preeq = other.newton_preeq;
+        newton_damping_factor = other.newton_damping_factor;
         ism = other.ism;
         sensi_meth = other.sensi_meth;
         linsol = other.linsol;
@@ -289,6 +290,18 @@ class Solver {
      * @param newton_preeq
      */
     void setNewtonPreequilibration(bool newton_preeq);
+
+    /**
+     * @brief setNewtonDampingFactor
+     * @param newton_df
+     */
+    void setNewtonDampingFactor(bool newton_df);
+
+    /**
+     * @brief getNewtonDampingFactor
+     * @return
+     */
+    bool getNewtonDampingFactor() const;
 
     /**
      * @brief getNewtonMaxLinearSteps
@@ -1154,6 +1167,9 @@ private:
 
     /** Preequilibration of model via Newton solver? */
     bool newton_preeq = false;
+
+    /** Use a damping factor in the Newton solver? */
+    bool newton_damping_factor = true;
 
     /** linear solver specification */
     LinearSolver linsol = LinearSolver::KLU;

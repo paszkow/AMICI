@@ -34,7 +34,7 @@ NewtonSolver::NewtonSolver(realtype *t, AmiVector *x, Model *model, ReturnData *
  */
 
 std::unique_ptr<NewtonSolver> NewtonSolver::getSolver(realtype *t, AmiVector *x, LinearSolver linsolType, Model *model,
-                                      ReturnData *rdata, int maxlinsteps, int maxsteps, double atol, double rtol) {
+                                      ReturnData *rdata, int maxlinsteps, int maxsteps, double atol, double rtol, bool damping_factor) {
     /**
      * Tries to determine the steady state of the ODE system by a Newton
      * solver, uses forward intergration, if the Newton solver fails,
@@ -97,6 +97,7 @@ std::unique_ptr<NewtonSolver> NewtonSolver::getSolver(realtype *t, AmiVector *x,
     solver->rtol = rtol;
     solver->maxlinsteps = maxlinsteps;
     solver->maxsteps = maxsteps;
+    solver->damping_factor = damping_factor;
 
     return solver;
 }

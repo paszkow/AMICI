@@ -43,7 +43,8 @@ void SteadystateProblem::workSteadyStateProblem(ReturnData *rdata,
                                                 solver->getNewtonMaxLinearSteps(),
                                                 solver->getNewtonMaxSteps(),
                                                 solver->getAbsoluteTolerance(),
-                                                solver->getRelativeTolerance());
+                                                solver->getRelativeTolerance(),
+                                                solver->getNewtonDampingFactor());
 
     auto newton_status = NewtonStatus::failed;
     try {
@@ -200,7 +201,7 @@ void SteadystateProblem::applyNewtonsMethod(ReturnData *rdata,
                 /* increase dampening factor (superfluous, if converged) */
                 gamma = fmin(1.0, 2.0 * gamma);
             }
-        } else {
+        } else if (newtonSolver->damping_factor){
             /* Reduce dampening factor */
             gamma = gamma / 4.0;
             if (gamma < 1e-6)
