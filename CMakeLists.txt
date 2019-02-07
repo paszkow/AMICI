@@ -91,6 +91,8 @@ set(AMICI_SRC_LIST
     ${CMAKE_SOURCE_DIR}/src/forwardproblem.cpp
     ${CMAKE_SOURCE_DIR}/src/steadystateproblem.cpp
     ${CMAKE_SOURCE_DIR}/src/backwardproblem.cpp
+    ${CMAKE_SOURCE_DIR}/src/sundials_matrix_wrapper.cpp
+    ${CMAKE_SOURCE_DIR}/src/abstract_model.cpp
     )
 
 add_library(${PROJECT_NAME} ${AMICI_SRC_LIST})
@@ -130,6 +132,7 @@ add_custom_target(
     src/wrapfunctions.ODE_template.h
     src/wrapfunctions.template.cpp
     swig/CMakeLists_model.txt
+    swig/modelname.template.i
     )
 
 
@@ -176,9 +179,9 @@ endif()
 
 # build interfaces for other languages
 option(ENABLE_SWIG "Build AMICI swig library?" ON)
-#if(ENABLE_SWIG)
-#    add_subdirectory(swig)
-#endif()
+if(ENABLE_SWIG)
+    add_subdirectory(swig)
+endif()
 
 option(ENABLE_PYTHON "Create Python module?" ON)
 if(ENABLE_PYTHON)

@@ -37,67 +37,47 @@ namespace amici {
 msgIdAndTxtFp errMsgIdAndTxt = &printErrMsgIdAndTxt;
 /** warnMsgIdAndTxt is a function pointer for printWarnMsgIdAndTxt  */
 msgIdAndTxtFp warnMsgIdAndTxt = &printWarnMsgIdAndTxt;
-    
 
-std::unique_ptr<ReturnData> runAmiciSimulation(Solver &solver, const ExpData *edata, Model &model) {
-    
+
+std::unique_ptr<ReturnData> runAmiciSimulation(Solver &solver, const ExpData *edata, Model &model, bool rethrow) {
     std::unique_ptr<ReturnData> rdata;
-    
-    auto originalFixedParameters = model.getFixedParameters(); // to restore after simulation
-    auto originalTimepoints = model.getTimepoints();
-    if(edata) {
-        if(!edata->fixedParameters.empty()) {
-            // fixed parameter in model are superseded by those provided in edata
-            if(edata->fixedParameters.size() != (unsigned) model.nk())
-                throw AmiException("Number of fixed parameters (%d) in model does not match ExpData (%zd).",
-                                   model.nk(), edata->fixedParameters.size());
-            model.setFixedParameters(edata->fixedParameters);
-        }
-        if(edata->nt()) {
-            // fixed parameter in model are superseded by those provided in edata
-            model.setTimepoints(edata->getTimepoints());
-        }
-    }
-    
+
+    /* Applies condition-specific model settings and restores them when going
+     * out of scope */
+    ConditionContext conditionContext(&model, edata);
+
     try{
         rdata = std::unique_ptr<ReturnData>(new ReturnData(solver,&model));
-        if (model.nx <= 0) {
-            model.setFixedParameters(originalFixedParameters);
-            model.setTimepoints(originalTimepoints);
+
+        if (model.nx_solver <= 0) {
             return rdata;
         }
-        
+
         auto fwd = std::unique_ptr<ForwardProblem>(new ForwardProblem(rdata.get(),edata,&model,&solver));
         fwd->workForwardProblem();
 
         auto bwd = std::unique_ptr<BackwardProblem>(new BackwardProblem(fwd.get()));
         bwd->workBackwardProblem();
-    
+
         rdata->status = AMICI_SUCCESS;
     } catch (amici::IntegrationFailure const& ex) {
         rdata->invalidate(ex.time);
         rdata->status = ex.error_code;
         // amici::warnMsgIdAndTxt("AMICI:mex:simulation","AMICI forward simulation failed at t = %f:\n%s\n",ex.time,ex.what());
     } catch (amici::IntegrationFailureB const& ex) {
-        rdata->invalidateLLH();
+        rdata->invalidateSLLH();
         rdata->status = ex.error_code;
         // amici::warnMsgIdAndTxt("AMICI:mex:simulation","AMICI backward simulation failed at t = %f:\n%s\n",ex.time,ex.what());
     } catch (amici::AmiException const& ex) {
         rdata->invalidate(model.t0());
         rdata->status = AMICI_ERROR;
         // amici::warnMsgIdAndTxt("AMICI:mex:simulation","AMICI simulation failed:\n%s\nError occured in:\n%s",ex.what(),ex.getBacktrace());
-    } catch (std::exception const& ex) {
-        model.setFixedParameters(originalFixedParameters);
-        model.setTimepoints(originalTimepoints);
-        throw;
     } catch (...) {
-        model.setFixedParameters(originalFixedParameters);
-        model.setTimepoints(originalTimepoints);
         throw std::runtime_error("Unknown internal error occured!");
     }
-    model.setFixedParameters(originalFixedParameters);
-    model.setTimepoints(originalTimepoints);
+
     rdata->applyChainRuleFactorToSimulationResults(&model);
+
     return rdata;
 }
 
@@ -145,11 +125,19 @@ void printWarnMsgIdAndTxt(const char *identifier, const char *format, ...) {
 
 std::vector<std::unique_ptr<ReturnData> > runAmiciSimulations(const Solver &solver,
                                                               const std::vector<ExpData*> &edatas,
-                                                              const Model &model, int num_threads)
+                                                              const Model &model,
+#if defined(_OPENMP)
+                                                              int num_threads
+#else
+                                                              int /* num_threads */
+#endif
+)
 {
     std::vector<std::unique_ptr<ReturnData> > results(edatas.size());
 
+#if defined(_OPENMP)
     #pragma omp parallel for num_threads(num_threads)
+#endif
     for(int i = 0; i < (int)edatas.size(); ++i) {
         auto mySolver = std::unique_ptr<Solver>(solver.clone());
         auto myModel = std::unique_ptr<Model>(model.clone());

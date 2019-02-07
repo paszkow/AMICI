@@ -183,7 +183,9 @@ function [objectStrAmici] = compileAmiciBase(amiciRootPath, objectFolder, object
         'interface_matlab', 'misc', ...
         'solver', 'solver_cvodes', 'solver_idas', ...
         'model', 'model_ode', 'model_dae', 'returndata_matlab', ...
-        'forwardproblem', 'steadystateproblem', 'backwardproblem', 'newton_solver'};
+        'forwardproblem', 'steadystateproblem', 'backwardproblem', 'newton_solver', ...
+        'abstract_model', 'sundials_matrix_wrapper'
+    };
     % to be safe, recompile everything if headers have changed. otherwise
     % would need to check the full include hierarchy
     amiciIncludePath = fullfile(amiciRootPath,'include','amici');
@@ -331,7 +333,7 @@ end
 
 function versionstring = getCompilerVersionString()
     [~,systemreturn] = system([mex.getCompilerConfigurations('c++').Details.CompilerExecutable ' --version']);
-    newlinePos = strfind(systemreturn,newline);
+    newlinePos = strfind(systemreturn, sprintf('\n'));
     str = systemreturn(1:(newlinePos(1)-1));
     str = regexprep(str,'[\(\)]','');
     str = regexprep(str,'[\s\.\-]','_');

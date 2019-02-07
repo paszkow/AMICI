@@ -28,14 +28,19 @@ import testSBML
 import testPandas
 import testPYSB
 import testCPP
+import testMisc
+import testPreequilibration
 
-# build the testSuite from testModels and testSBML
+test_modules = (
+    testSBML, testModels, testPandas, testPYSB, testCPP, testMisc,
+    testPreequilibration,
+)
+
 suite = unittest.TestSuite()
-suite.addTest(testSBML.TestAmiciSBMLModel())
-suite.addTest(testModels.TestAmiciPregeneratedModel())
-suite.addTest(testPandas.TestAmiciPandasImportExport())
-suite.addTest(testPYSB.TestAmiciPYSBModel())
-suite.addTest(testCPP.TestAmiciCPP())
+loader = unittest.TestLoader()
+for test_module in test_modules:
+    tests = loader.loadTestsFromModule(test_module)
+    suite.addTests(tests)
 
 testRunner = unittest.TextTestRunner(verbosity=0)
 result = testRunner.run(suite)

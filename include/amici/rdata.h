@@ -19,14 +19,16 @@ void serialize(Archive &ar, amici::ReturnData &u, const unsigned int version);
 
 namespace amici {
 
-/** @brief class that stores all data which is later returned by the mex
- * function
+/** @brief Stores all data to be returned by amici::runAmiciSimulation.
  *
  * NOTE: multidimensional arrays are stored in row-major order
  * (FORTRAN-style)
  */
 class ReturnData {
   public:
+    /**
+     * @brief default constructor
+     */
     ReturnData();
 
     /**
@@ -34,8 +36,9 @@ class ReturnData {
      * @param ts see amici::Model::ts
      * @param np see amici::Model::np
      * @param nk see amici::Model::nk
-     * @param nx see amici::Model::nx
-     * @param nxtrue see amici::Model::nxtrue
+     * @param nx see amici::Model::nx_rdata
+     * @param nx_solver see amici::Model::nx_solver
+     * @param nxtrue see amici::Model::nxtrue_rdata
      * @param ny see amici::Model::ny
      * @param nytrue see amici::Model::nytrue
      * @param nz see amici::Model::nz
@@ -53,11 +56,18 @@ class ReturnData {
      */
     ReturnData(
             std::vector<realtype> ts,
-            int np, int nk, int nx, int nxtrue, int ny, int nytrue,
+            int np, int nk, int nx, int nx_solver, int nxtrue, int ny, int nytrue,
             int nz, int nztrue, int ne, int nJ, int nplist, int nmaxevent,
             int nt, int newton_maxsteps, std::vector<ParameterScaling> pscale,
             SecondOrderMode o2mode, SensitivityOrder sensi, SensitivityMethod sensi_meth);
 
+    /**
+     * @brief constructor that uses information from model and solver to
+     * appropriately initialize fields
+     * @param solver solver
+     * @param model pointer to model specification object
+     * bool
+     */
     ReturnData(Solver const& solver, const Model *model);
 
     ~ReturnData() = default;
@@ -67,10 +77,31 @@ class ReturnData {
      */
     void initializeObjectiveFunction();
 
+    /**
+     * @brief Set likelihood, state variables, outputs and respective
+     * sensitivities to NaN (typically after integration failure)
+     * @param t time of integration failure
+     */
     void invalidate(const realtype t);
+
+    /**
+     * @brief Set likelihood and chi2 to NaN
+     * (typically after integration failure)
+     */
     void invalidateLLH();
 
-    void 
+    /**
+     * @brief Set likelihood sensitivities to NaN
+     * (typically after integration failure)
+     */
+    void invalidateSLLH();
+
+    /**
+     * @brief applies the chain rule to account for parameter transformation
+     * in the sensitivities of simulation results
+     * @param model Model from which the ReturnData was obtained
+     */
+    void
     applyChainRuleFactorToSimulationResults(const Model *model);
 
     /** timepoints (dimension: nt) */
@@ -129,14 +160,14 @@ class ReturnData {
     /** parameter derivative of observable standard deviation (dimension: nt x
      * nplist x ny, row-major) */
     std::vector<realtype> ssigmay;
-    
+
     /** observable (dimension: nt*ny, row-major) */
     std::vector<realtype> res;
 
     /** parameter derivative of residual (dimension: nt*ny x nplist,
      * row-major) */
     std::vector<realtype> sres;
-    
+
     /** fisher information matrix (dimension: nplist x nplist,
      * row-major) */
     std::vector<realtype> FIM;
@@ -176,28 +207,37 @@ class ReturnData {
     /** computation time of the Newton solver [s] */
     double newton_cpu_time = 0.0;
 
-    /** number of Newton steps for steady state problem (length = 2) */
+    /** number of Newton steps for steady state problem
+     [newton, simulation, newton] (length = 3) */
     std::vector<int> newton_numsteps;
 
-    /** number of linear steps by Newton step for steady state problem (length = newton_maxsteps * 2) */
+    /** number of linear steps by Newton step for steady state problem. this
+     will only be filled for iterative solvers (length = newton_maxsteps * 2) */
     std::vector<int> newton_numlinsteps;
-    
+
     /** time at which steadystate was reached in the simulation based approach */
     realtype t_steadystate = NAN;
-    
+
     /** weighted root-mean-square of the rhs when steadystate
      was reached*/
     realtype wrms_steadystate = NAN;
-    
+
     /** weighted root-mean-square of the rhs when steadystate
      was reached*/
     realtype wrms_sensi_steadystate = NAN;
 
-    /** preequilibration steady state found be Newton solver (dimension: nx) */
+
+    /** initial state (dimension: nx) */
     std::vector<realtype> x0;
 
-    /** preequilibration sensitivities found be Newton solver (dimension: nplist x nx, row-major) */
+    /** preequilibration steady state found by Newton solver (dimension: nx) */
+    std::vector<realtype> x_ss;
+
+    /** initial sensitivities (dimension: nplist x nx, row-major) */
     std::vector<realtype> sx0;
+
+    /** preequilibration sensitivities found by Newton solver (dimension: nplist x nx, row-major) */
+    std::vector<realtype> sx_ss;
 
     /** loglikelihood value */
     realtype llh = 0.0;
@@ -221,6 +261,8 @@ class ReturnData {
     const int nk;
     /** number of states */
     const int nx;
+    /** number of states with conservation laws applied */
+    const int nx_solver;
     /** number of states in the unaugmented system */
     const int nxtrue;
     /** number of observables */

@@ -56,9 +56,9 @@ wrap_unique_ptr(ExpDataPtr, amici::ExpData)
 // Include before any other header which uses enums defined there
 %include "amici/defines.h"
 
+%include abstract_model.i
 %include edata.i
 %include rdata.i
-
 %include solver.i
 %include solver_idas.i
 %include solver_cvodes.i
@@ -93,10 +93,30 @@ using namespace amici;
 %include "amici/amici.h"
 
 // Expose vectors
-%template(ScalingVector) std::vector<amici::ParameterScaling>;
 %template(ExpDataPtrVector) std::vector<amici::ExpData*>;
 
 
+// Convert integer values to enum class
+// defeats the purpose of enum class, but didn't find a better way to allow for
+// vectors of enum class types in python
+%{
+namespace amici {
+std::vector<amici::ParameterScaling> parameterScalingFromIntVector(std::vector<int> const& intVec) {
+    std::vector<amici::ParameterScaling> result(intVec.size());
+    for (int i = 0; i < (int) result.size(); ++i) {
+        result[i] = static_cast<amici::ParameterScaling>(intVec[i]);
+    }
+    return result;
+}
+}; // namespace amici
+%}
+namespace amici {
+    std::vector<amici::ParameterScaling> parameterScalingFromIntVector(std::vector<int> const& intVec);
+}
+%template(ParameterScalingVector) std::vector<amici::ParameterScaling>;
+
+
+// Add function to check if amici was compiled with OpenMP
 %{
 namespace amici {
 /** AMICI extension was compiled with OpenMP? */

@@ -1,11 +1,13 @@
+#!/usr/bin/env python3
 """ @package amici.sbml_import The python sbml import module for python
 """
-#!/usr/bin/env python3
 
 import sympy as sp
 import libsbml as sbml
 import re
 import math
+from sympy.logic.boolalg import BooleanTrue as spTrue
+from sympy.logic.boolalg import BooleanFalse as spFalse
 
 from .ode_export import ODEExporter, ODEModel
 
@@ -28,18 +30,18 @@ default_symbols = {
 class SbmlImporter:
     """The SbmlImporter class generates AMICI C++ files for a model provided in
     the Systems Biology Markup Language (SBML).
-    
+
     Attributes:
 
-        check_validity: indicates whether the validity of the SBML document
-        should be checked @type bool
+        show_sbml_warnings: indicates whether libSBML warnings should be
+        displayed @type bool
 
         symbols: dict carrying symbolic definitions @type dict
 
         SBMLreader: the libSBML sbml reader [!not storing this will result
         in a segfault!]
 
-        sbml_doc: document carrying the sbml defintion [!not storing this
+        sbml_doc: document carrying the sbml definition [!not storing this
         will result in a segfault!]
 
         sbml: sbml definition [!not storing this will result in a segfault!]
@@ -62,25 +64,25 @@ class SbmlImporter:
 
         compartmentSymbols: compartment ids @type sympy.Matrix
 
-        compartmentVolume: numeric/symbnolic compartment volumes @type
+        compartmentVolume: numeric/symbolic compartment volumes @type
         sympy.Matrix
 
-        stoichiometricMatrix: stoichiometrix matrix of the model @type
+        stoichiometricMatrix: stoichiometric matrix of the model @type
         sympy.Matrix
 
         fluxVector: reaction kinetic laws @type sympy.Matrix
 
     """
 
-    def __init__(self, SBMLFile, check_validity=True):
+    def __init__(self, SBMLFile, show_sbml_warnings=False):
         """Create a new Model instance.
 
         Arguments:
 
         SBMLFile: Path to SBML file where the model is specified @type string
 
-        check_validity: Flag indicating whether the validity of the SBML
-        document should be checked @type bool
+        show_sbml_warnings: indicates whether libSBML warnings should be
+        displayed @type bool
 
         Returns:
         SbmlImporter instance with attached SBML document
@@ -89,7 +91,7 @@ class SbmlImporter:
 
         """
 
-        self.check_validity = check_validity
+        self.show_sbml_warnings = show_sbml_warnings
 
         self.loadSBMLFile(SBMLFile)
 
@@ -123,10 +125,11 @@ class SbmlImporter:
 
         self.SBMLreader = sbml.SBMLReader()
         self.sbml_doc = self.SBMLreader.readSBML(SBMLFile)
-        self.checkLibSBMLErrors()
-        # If any of the above calls produces an error, this will be added to
-        # the SBMLError log in the sbml document. Thus, it is sufficient to
-        # check the error log just once after all conversion/validation calls.
+
+        # Ensure we got a valid SBML model, otherwise further processing
+        # might lead to undefined results
+        self.sbml_doc.validateSBML()
+        checkLibSBMLErrors(self.sbml_doc, self.show_sbml_warnings)
 
         # apply several model simplifications that make our life substantially
         # easier
@@ -139,44 +142,12 @@ class SbmlImporter:
             getDefaultProperties()
         self.sbml_doc.convert(convertConfig)
 
-        if self.check_validity:
-            self.sbml_doc.validateSBML()
-
         # If any of the above calls produces an error, this will be added to
         # the SBMLError log in the sbml document. Thus, it is sufficient to
         # check the error log just once after all conversion/validation calls.
-        self.checkLibSBMLErrors()
+        checkLibSBMLErrors(self.sbml_doc, self.show_sbml_warnings)
 
         self.sbml = self.sbml_doc.getModel()
-
-    def checkLibSBMLErrors(self):
-        """Checks the error log in the current self.sbml_doc
-
-        Arguments:
-
-        Returns:
-
-        Raises:
-        raises SBMLException if errors with severity ERROR or FATAL have
-        occured
-
-        """
-        num_warning = self.sbml_doc.getNumErrors(sbml.LIBSBML_SEV_WARNING)
-        num_error = self.sbml_doc.getNumErrors(sbml.LIBSBML_SEV_ERROR)
-        num_fatal = self.sbml_doc.getNumErrors(sbml.LIBSBML_SEV_FATAL)
-        if num_warning + num_error + num_fatal:
-            for iError in range(0, self.sbml_doc.getNumErrors()):
-                error = self.sbml_doc.getError(iError)
-                # we ignore any info messages for now
-                if error.getSeverity() >= sbml.LIBSBML_SEV_WARNING:
-                    category = error.getCategoryAsString()
-                    severity = error.getSeverityAsString()
-                    error_message = error.getMessage()
-                    print(f'libSBML {severity} ({category}): {error_message}')
-        if num_error + num_fatal:
-            raise SBMLException(
-                'SBML Document failed to load (see error messages above)'
-            )
 
     def sbml2amici(self,
                    modelName,
@@ -186,7 +157,8 @@ class SbmlImporter:
                    sigmas=None,
                    verbose=False,
                    assume_pow_positivity=False,
-                   compiler=None
+                   compiler=None,
+                   allow_reinit_fixpar_initcond = True
                    ):
         """Generate AMICI C++ files for the model provided to the constructor.
 
@@ -214,6 +186,8 @@ class SbmlImporter:
             compiler: distutils/setuptools compiler selection to build the
             python extension @type str
 
+            allow_reinit_fixpar_initcond: see ode_export.ODEExporter
+
         Returns:
 
         Raises:
@@ -239,6 +213,7 @@ class SbmlImporter:
             verbose=verbose,
             assume_pow_positivity=assume_pow_positivity,
             compiler=compiler,
+            allow_reinit_fixpar_initcond=allow_reinit_fixpar_initcond
         )
         exporter.setName(modelName)
         exporter.setPaths(output_dir)
@@ -370,22 +345,39 @@ class SbmlImporter:
                 index = species_ids.index(
                         initial_assignment.getId()
                     )
-                speciesInitial[index] = sp.sympify(
+                symMath = sp.sympify(
                     sbml.formulaToL3String(initial_assignment.getMath())
                 )
+                if symMath is not None:
+                    _check_unsupported_functions(symMath, 'InitialAssignment')
+                    speciesInitial[index] = symMath
 
         # flatten initSpecies
         while any([species in speciesInitial.free_symbols
                    for species in self.symbols['species']['identifier']]):
-            speciesInitial = speciesInitial.subs(
-                self.symbols['species']['identifier'],
-                speciesInitial
-            )
+            identical_assignment = next((
+                symbol == init
+                for symbol, init in zip(
+                    self.symbols['species']['identifier'], speciesInitial
+                )
+            ), None)
+            if identical_assignment is not None:
+                raise SBMLException('Species without initial assignment are '
+                                    'currently not supported (this is error '
+                                    'is likely to be due to the existence of '
+                                    'a species assignment rule, which is '
+                                    'also not supported)!')
+            speciesInitial = speciesInitial.subs([
+                (symbol, init)
+                for symbol, init in zip(
+                    self.symbols['species']['identifier'], speciesInitial
+                )
+            ])
 
         self.symbols['species']['value'] = speciesInitial
 
         if self.sbml.isSetConversionFactor():
-            conversion_factor = self.sbml.getConversionFactor()
+            conversion_factor = sp.Symbol(self.sbml.getConversionFactor())
         else:
             conversion_factor = 1.0
 
@@ -507,7 +499,7 @@ class SbmlImporter:
                     sbml.formulaToL3String(initial_assignment.getMath())
                 )
 
-        for comp, vol in zip(self.compartmentSymbols,self.compartmentVolume):
+        for comp, vol in zip(self.compartmentSymbols, self.compartmentVolume):
             self.replaceInAllExpressions(
                comp, vol
             )
@@ -545,29 +537,34 @@ class SbmlImporter:
             assignment = self.sbml.getInitialAssignment(
                 element_id
             )
-            sym = sp.sympify(assignment.getFormula())
+            sym = sp.sympify(sbml.formulaToL3String(assignment.getMath()))
             # this is an initial assignment so we need to use
             # initial conditions
-            sym = sym.subs(
-                self.symbols['species']['identifier'],
-                self.symbols['species']['value']
-            )
+            if sym is not None:
+                sym = sym.subs(
+                    self.symbols['species']['identifier'],
+                    self.symbols['species']['value']
+                )
             return sym
 
         def getElementStoichiometry(element):
             if element.isSetId():
                 if element.getId() in assignment_ids:
-                    return getElementFromAssignment(element.getId())
+                    symMath = getElementFromAssignment(element.getId())
+                    if symMath is None:
+                        symMath = sp.sympify(element.getStoichiometry())
                 elif element.getId() in rulevars:
-                    return sp.sympify(element.getId())
+                    return sp.Symbol(element.getId())
                 else:
                     # dont put the symbol if it wont get replaced by a
                     # rule
-                    return sp.sympify(element.getStoichiometry())
+                    symMath = sp.sympify(element.getStoichiometry())
             elif element.isSetStoichiometry():
-                return sp.sympify(element.getStoichiometry())
+                symMath = sp.sympify(element.getStoichiometry())
             else:
                 return sp.sympify(1.0)
+            _check_unsupported_functions(symMath, 'Stoichiometry')
+            return symMath
 
         def isConstant(specie):
             return specie in self.constantSpecies or \
@@ -604,6 +601,7 @@ class SbmlImporter:
             except:
                 raise SBMLException(f'Kinetic law "{math}" contains an '
                                     'unsupported expression!')
+            _check_unsupported_functions(symMath, 'KineticLaw')
             for r in reactions:
                 elements = list(r.getListOfReactants()) \
                            + list(r.getListOfProducts())
@@ -623,7 +621,6 @@ class SbmlImporter:
                     'Kinetic laws involving reaction ids are currently'
                     ' not supported!'
                 )
-
 
     def processRules(self):
         """Process Rules defined in the SBML model.
@@ -655,6 +652,7 @@ class SbmlImporter:
             variable = sp.sympify(rule.getVariable())
             # avoid incorrect parsing of pow(x, -1) in symengine
             formula = sp.sympify(sbml.formulaToL3String(rule.getMath()))
+            _check_unsupported_functions(formula, 'Rule')
 
             if variable in stoichvars:
                 self.stoichiometricMatrix = \
@@ -762,6 +760,13 @@ class SbmlImporter:
 
         if sigmas is None:
             sigmas = {}
+        else:
+            # Ensure no non-existing observableIds have been specified
+            # (no problem here, but usually an upstream bug)
+            unknown_observables = set(sigmas.keys()) - set(observables.keys())
+            if unknown_observables:
+                raise ValueError('Sigma provided for an unknown observableId: '
+                                 + str(unknown_observables))
 
         speciesSyms = self.symbols['species']['identifier']
 
@@ -959,7 +964,7 @@ def assignmentRules2observables(sbml_model,
 
     Returns:
     A dictionary(observableId:{
-        'name': observableNamem,
+        'name': observableName,
         'formula': formulaString
     })
 
@@ -1016,6 +1021,7 @@ def constantSpeciesToParameters(sbml_model):
         species = sbml_model.removeSpecies(speciesId)
         par = sbml_model.createParameter()
         par.setId(species.getId())
+        par.setName(species.getName())
         par.setConstant(True)
         par.setValue(species.getInitialConcentration())
         par.setUnits(species.getUnits())
@@ -1092,3 +1098,90 @@ def l2s(inputs):
 
     """
     return [str(inp) for inp in inputs]
+
+
+def checkLibSBMLErrors(sbml_doc, show_warnings=False):
+    """Checks the error log in the current self.sbml_doc
+
+    Arguments:
+        sbml_doc: SBML document @type libsbml.SBMLDocument
+        show_warnings: display SBML warnings @type bool
+
+    Returns:
+
+    Raises:
+        raises SBMLException if errors with severity ERROR or FATAL have
+        occurred
+    """
+    num_warning = sbml_doc.getNumErrors(sbml.LIBSBML_SEV_WARNING)
+    num_error = sbml_doc.getNumErrors(sbml.LIBSBML_SEV_ERROR)
+    num_fatal = sbml_doc.getNumErrors(sbml.LIBSBML_SEV_FATAL)
+
+    if num_warning + num_error + num_fatal:
+        for iError in range(0, sbml_doc.getNumErrors()):
+            error = sbml_doc.getError(iError)
+            # we ignore any info messages for now
+            if error.getSeverity() >= sbml.LIBSBML_SEV_ERROR \
+                    or (show_warnings and
+                        error.getSeverity() >= sbml.LIBSBML_SEV_WARNING):
+                category = error.getCategoryAsString()
+                severity = error.getSeverityAsString()
+                error_message = error.getMessage()
+                print(f'libSBML {severity} ({category}): {error_message}')
+
+    if num_error + num_fatal:
+        raise SBMLException(
+            'SBML Document failed to load (see error messages above)'
+        )
+
+
+def _check_unsupported_functions(sym, expression_type, full_sym=None):
+    """Recursively checks the symbolic expression for unsupported symbolic
+    functions
+
+        Arguments:
+            sym: symbolic expressions @type sympy.Basic
+            expression_type: type of expression
+
+        Returns:
+
+        Raises:
+            raises SBMLException if an unsupported function is encountered
+    """
+    if full_sym is None:
+        full_sym = sym
+
+    unsupported_functions = [
+        sp.functions.factorial, sp.functions.ceiling, sp.functions.floor,
+        sp.functions.Piecewise, spTrue, spFalse, sp.function.UndefinedFunction
+    ]
+
+    unsupp_fun_type = next(
+        (
+            fun_type
+            for fun_type in unsupported_functions
+            if isinstance(sym.func, fun_type)
+        ),
+        None
+    )
+    if unsupp_fun_type:
+        raise SBMLException(f'Encountered unsupported expression '
+                            f'"{sym.func}" of type '
+                            f'"{unsupp_fun_type}" as part of a '
+                            f'{expression_type}: "{full_sym}"!')
+    for fun in list(sym._args) + [sym]:
+        unsupp_fun_type = next(
+            (
+                fun_type
+                for fun_type in unsupported_functions
+                if isinstance(fun, fun_type)
+            ),
+            None
+        )
+        if unsupp_fun_type:
+            raise SBMLException(f'Encountered unsupported expression '
+                                f'"{fun}" of type '
+                                f'"{unsupp_fun_type}" as part of a '
+                                f'{expression_type}: "{full_sym}"!')
+        if fun is not sym:
+            _check_unsupported_functions(fun, expression_type)

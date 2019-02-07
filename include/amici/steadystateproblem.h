@@ -62,10 +62,11 @@ class SteadystateProblem {
      * @param model pointer to the AMICI model object
      * @param newtonSolver pointer to the NewtonSolver object @type
      * NewtonSolver
-     * @param newton_try integer start number of Newton solver (1 or 2)
+     * @param steadystate_try start status of Newton solver
      */
     void applyNewtonsMethod(ReturnData *rdata, Model *model,
-                                  NewtonSolver *newtonSolver, int newton_try);
+                            NewtonSolver *newtonSolver,
+                            NewtonStatus steadystate_try);
     /**
      * Stores output of workSteadyStateProblem in return data
      *
@@ -98,7 +99,7 @@ class SteadystateProblem {
      * @param tstart time point for starting Newton simulation
      * @return solver instance
      */
-    std::unique_ptr<CVodeSolver> createSteadystateSimSolver(Solver *solver, Model *model, realtype tstart);
+    std::unique_ptr<Solver> createSteadystateSimSolver(Solver *solver, Model *model, realtype tstart);
 
     /** default constructor
      * @param t pointer to time variable
