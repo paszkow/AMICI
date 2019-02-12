@@ -282,6 +282,18 @@ class Solver {
     void setNewtonPreequilibration(bool newton_preeq);
 
     /**
+     * @brief setNewtonDampingFactor
+     * @param newton_df
+     */
+    void setNewtonDampingFactor(bool newton_df);
+
+    /**
+     * @brief getNewtonDampingFactor
+     * @return
+     */
+    bool getNewtonDampingFactor() const;
+
+    /**
      * @brief Get maximum number of allowed linear steps per Newton step for
      * steady state computation
      * @return
@@ -1208,6 +1220,9 @@ private:
 
     /** Preequilibration of model via Newton solver? */
     bool newton_preeq = false;
+
+    /** Use a damping factor in the Newton solver? */
+    bool newton_damping_factor = true;
 
     /** linear solver specification */
     LinearSolver linsol = LinearSolver::KLU;

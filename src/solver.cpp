@@ -37,6 +37,7 @@ Solver::Solver(const Solver &other) : Solver()
     newton_maxsteps = other.newton_maxsteps;
     newton_maxlinsteps = other.newton_maxlinsteps;
     newton_preeq = other.newton_preeq;
+    newton_damping_factor = other.newton_damping_factor;
     ism = other.ism;
     sensi_meth = other.sensi_meth;
     linsol = other.linsol;
@@ -170,7 +171,7 @@ void Solver::wrapErrHandlerFn(int error_code, const char *module,
         break;
     }
 
-    warnMsgIdAndTxt(buffid, buffer);
+    // warnMsgIdAndTxt(buffid, buffer);
 }
 
 void Solver::getDiagnosis(const int it, ReturnData *rdata) const {
@@ -485,6 +486,14 @@ bool Solver::getNewtonPreequilibration() const {
 
 void Solver::setNewtonPreequilibration(bool newton_preeq) {
     this->newton_preeq = newton_preeq;
+}
+
+void Solver::setNewtonDampingFactor(bool newton_df) {
+    this->newton_damping_factor = newton_df;
+}
+
+bool Solver::getNewtonDampingFactor() const {
+    return this->newton_damping_factor;
 }
 
 int Solver::getNewtonMaxLinearSteps() const {

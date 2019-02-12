@@ -35,9 +35,8 @@ NewtonSolver::NewtonSolver(realtype *t, AmiVector *x, Model *model, ReturnData *
 /* ----------------------------------------------------------------------------------
  */
 
-std::unique_ptr<NewtonSolver> NewtonSolver::getSolver(
-        realtype *t, AmiVector *x, LinearSolver linsolType, Model *model,
-        ReturnData *rdata, int maxlinsteps, int maxsteps, double atol, double rtol) {
+std::unique_ptr<NewtonSolver> NewtonSolver::getSolver(realtype *t, AmiVector *x, LinearSolver linsolType, Model *model,
+                                      ReturnData *rdata, int maxlinsteps, int maxsteps, double atol, double rtol, bool damping_factor) {
     /**
      * Tries to determine the steady state of the ODE system by a Newton
      * solver, uses forward intergration, if the Newton solver fails,
@@ -100,6 +99,7 @@ std::unique_ptr<NewtonSolver> NewtonSolver::getSolver(
     solver->rtol = rtol;
     solver->maxlinsteps = maxlinsteps;
     solver->maxsteps = maxsteps;
+    solver->damping_factor = damping_factor;
 
     return solver;
 }
@@ -421,8 +421,10 @@ void NewtonSolverIterative::linsolveSPBCG(int ntry,int nnewt, AmiVector *ns_delt
     res = sqrt(N_VDotProd(ns_r.getNVector(), ns_r.getNVector()));
     ns_rt = ns_r;
 
-    for (int i_linstep = 0; i_linstep < maxlinsteps;
-         i_linstep++) {
+    bool converged = false;
+    int i_linstep = 0;
+    while (i_linstep++ < maxlinsteps)
+    {
         // Compute factors
         double rho1 = rho;
         rho = N_VDotProd(ns_rt.getNVector(), ns_r.getNVector());
@@ -461,19 +463,19 @@ void NewtonSolverIterative::linsolveSPBCG(int ntry,int nnewt, AmiVector *ns_delt
         res = sqrt(N_VDotProd(ns_r.getNVector(), ns_r.getNVector()));
 
         // Test convergence
-        if (res < atol) {
-            // Write number of steps needed
-            rdata->newton_numlinsteps[(ntry - 1) * maxsteps +
-                                      nnewt] = i_linstep + 1;
-
-            // Return success
-            return;
+        if (res < atol)
+        {
+          converged = true;
+          break;
         }
 
         // Scale back
         N_VDiv(ns_r.getNVector(), ns_Jdiag.getNVector(), ns_r.getNVector());
     }
-    throw NewtonFailure(AMICI_CONV_FAILURE, "linsolveSPBCG");
+
+    rdata->newton_numlinsteps[(ntry - 1) * maxsteps + nnewt] = i_linstep;
+    if(!converged)
+      throw NewtonFailure(AMICI_CONV_FAILURE, "linsolveSPBCG");
 }
 
 

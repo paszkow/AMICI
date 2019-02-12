@@ -41,7 +41,8 @@ void SteadystateProblem::workSteadyStateProblem(ReturnData *rdata,
     auto newtonSolver = NewtonSolver::getSolver(
         t, x, solver->getLinearSolver(), model, rdata,
         solver->getNewtonMaxLinearSteps(), solver->getNewtonMaxSteps(),
-        solver->getAbsoluteTolerance(), solver->getRelativeTolerance());
+        solver->getAbsoluteTolerance(), solver->getRelativeTolerance(),
+        solver->getNewtonDampingFactor());
 
     auto newton_status = NewtonStatus::failed;
     try {
@@ -49,26 +50,27 @@ void SteadystateProblem::workSteadyStateProblem(ReturnData *rdata,
                            NewtonStatus::newt);
         newton_status = NewtonStatus::newt;
     } catch (NewtonFailure const &ex1) {
+/*
         try {
-            /* Newton solver did not work, so try a simulation */
-            if (it < 1) /* No previous time point computed, set t = t0 */
+            // Newton solver did not work, so try a simulation
+            if (it < 1) // No previous time point computed, set t = t0
                 *t = model->t0();
-            else /* Carry on simulating from last point */
+            else // Carry on simulating from last point
                 *t = model->t(it - 1);
             if (it < 0) {
-                /* Preequilibration? -> Create a new CVode object for sim */
+                // Preequilibration? -> Create a new CVode object for sim
                 auto newtonSimSolver =
                     createSteadystateSimSolver(solver, model, *t);
                 getSteadystateSimulation(rdata, newtonSimSolver.get(), model,
                                          it);
             } else {
-                /* Solver was already created, use this one */
+                // Solver was already created, use this one
                 getSteadystateSimulation(rdata, solver, model, it);
             }
             newton_status = NewtonStatus::newt_sim;
         } catch (AmiException const &ex2) {
-            /* may be integration failure from AmiSolve, so NewtonFailure
-               won't do for all cases */
+            // may be integration failure from AmiSolve, so NewtonFailure
+               won't do for all cases
             try {
                 applyNewtonsMethod(rdata, model, newtonSolver.get(),
                                    NewtonStatus::newt_sim_newt);
@@ -81,6 +83,7 @@ void SteadystateProblem::workSteadyStateProblem(ReturnData *rdata,
                 throw;
             }
         }
+*/
     }
     run_time = (double)((clock() - starttime) * 1000) / CLOCKS_PER_SEC;
 
@@ -209,9 +212,12 @@ void SteadystateProblem::applyNewtonsMethod(ReturnData *rdata, Model *model,
                 /* increase dampening factor (superfluous, if converged) */
                 gamma = fmin(1.0, 2.0 * gamma);
             }
-        } else {
+        } else if (newtonSolver->damping_factor){
             /* Reduce dampening factor */
             gamma = gamma / 4.0;
+            if (gamma < 1e-6)
+              break;
+
             /* No new linear solve, only try new dampening */
             compNewStep = FALSE;
         }

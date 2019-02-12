@@ -27,7 +27,7 @@ class NewtonSolver {
     NewtonSolver(realtype *t, AmiVector *x, Model *model, ReturnData *rdata);
 
     static std::unique_ptr<NewtonSolver> getSolver(realtype *t, AmiVector *x, LinearSolver linsolType, Model *model,
-                                   ReturnData *rdata, int maxlinsteps, int maxsteps, double atol, double rtol);
+                                   ReturnData *rdata, int maxlinsteps, int maxsteps, double atol, double rtol, bool damping_factor);
 
     void getStep(int ntry, int nnewt, AmiVector *delta);
 
@@ -62,6 +62,8 @@ class NewtonSolver {
     double atol = 1e-16;
     /** relative tolerance */
     double rtol = 1e-8;
+    /** use damping factor */
+    bool damping_factor = true;
 
   protected:
     /** time variable */
