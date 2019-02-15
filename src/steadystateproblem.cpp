@@ -141,7 +141,6 @@ void SteadystateProblem::applyNewtonsMethod(ReturnData *rdata, Model *model,
                                             NewtonSolver *newtonSolver,
                                             NewtonStatus steadystate_try) {
     int i_newtonstep = 0;
-    int ix = 0;
     double gamma = 1.0;
     bool compNewStep = TRUE;
 
@@ -200,15 +199,8 @@ void SteadystateProblem::applyNewtonsMethod(ReturnData *rdata, Model *model,
             /* Check residuals vs tolerances */
             converged = wrms < RCONST(1.0);
 
-            if (converged) {
-                /* Ensure positivity of the found state */
-                for (ix = 0; ix < model->nx_solver; ix++) {
-                    if ((*x)[ix] < 0.0) {
-                        (*x)[ix] = 0.0;
-                        converged = FALSE;
-                    }
-                }
-            } else {
+            if (!converged)
+            {
                 /* increase dampening factor (superfluous, if converged) */
                 gamma = fmin(1.0, 2.0 * gamma);
             }
