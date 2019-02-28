@@ -170,12 +170,12 @@ void SteadystateProblem::applyNewtonsMethod(ReturnData *rdata, Model *model,
             } catch (NewtonFailure const &ex) {
                 rdata->newton_numsteps.at(steadystate_try == NewtonStatus::newt
                                               ? 0
-                                              : 2) = i_newtonstep;
+                                              : 2) = ++i_newtonstep;
                 throw;
             } catch (std::exception const &ex) {
                 rdata->newton_numsteps.at(steadystate_try == NewtonStatus::newt
                                               ? 0
-                                              : 2) = i_newtonstep;
+                                              : 2) = ++i_newtonstep;
                 throw AmiException("Newton solver failed to compute new step: "
                                    "%s", ex.what());
             }
