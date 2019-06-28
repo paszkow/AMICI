@@ -102,7 +102,8 @@ enum class LinearSolver {
     SPGMR       = 6,
     SPBCG       = 7,
     SPTFQMR     = 8,
-    KLU         = 9
+    KLU         = 9,
+    SuperLUMT   = 10,
 };
 
 /** CVODES/IDAS forward sensitivity computation method */
@@ -126,31 +127,25 @@ enum class LinearMultistepMethod {
 
 /** CVODES/IDAS Nonlinear Iteration method */
 enum class NonlinearSolverIteration {
-    functional = 1,
+    functional = 1, /** deprecated */
+    fixedpoint = 1,
     newton = 2
 };
 
-/** KLU state reordering */
-enum class StateOrdering {
-    AMD,
-    COLAMD,
-    natural
-};
-  
 /** Sensitivity computation mode in steadyStateProblem */
 enum class SteadyStateSensitivityMode {
     newtonOnly,
     simulationFSA
 };
 
-/** State in which the steady state computionat finished */
+/** State in which the steady state computation finished */
 enum class NewtonStatus {
     failed=-1,
     newt=1,
     newt_sim=2,
     newt_sim_newt=3,
 };
-    
+
 /**
  * @brief msgIdAndTxtFp
  * @param identifier string with error message identifier

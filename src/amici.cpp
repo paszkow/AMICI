@@ -29,7 +29,8 @@ static_assert(AMICI_ILL_INPUT == CV_ILL_INPUT,
               "AMICI_ILL_INPUT != CV_ILL_INPUT");
 static_assert(AMICI_NORMAL == CV_NORMAL, "AMICI_NORMAL != CV_NORMAL");
 static_assert(AMICI_ONE_STEP == CV_ONE_STEP, "AMICI_ONE_STEP != CV_ONE_STEP");
-static_assert(std::is_same<amici::realtype, realtype>::value, "Definition of realtype does not match");
+static_assert(std::is_same<amici::realtype, realtype>::value,
+              "Definition of realtype does not match");
 
 namespace amici {
 
@@ -71,9 +72,8 @@ std::unique_ptr<ReturnData> runAmiciSimulation(Solver &solver, const ExpData *ed
     } catch (amici::AmiException const& ex) {
         rdata->invalidate(model.t0());
         rdata->status = AMICI_ERROR;
+        if(rethrow) throw;
         // amici::warnMsgIdAndTxt("AMICI:mex:simulation","AMICI simulation failed:\n%s\nError occured in:\n%s",ex.what(),ex.getBacktrace());
-    } catch (...) {
-        throw std::runtime_error("Unknown internal error occured!");
     }
 
     rdata->applyChainRuleFactorToSimulationResults(&model);
@@ -126,6 +126,7 @@ void printWarnMsgIdAndTxt(const char *identifier, const char *format, ...) {
 std::vector<std::unique_ptr<ReturnData> > runAmiciSimulations(const Solver &solver,
                                                               const std::vector<ExpData*> &edatas,
                                                               const Model &model,
+                                                              const bool failfast,
 #if defined(_OPENMP)
                                                               int num_threads
 #else
@@ -134,6 +135,7 @@ std::vector<std::unique_ptr<ReturnData> > runAmiciSimulations(const Solver &solv
 )
 {
     std::vector<std::unique_ptr<ReturnData> > results(edatas.size());
+    bool failed = false;
 
 #if defined(_OPENMP)
     #pragma omp parallel for num_threads(num_threads)
@@ -142,7 +144,18 @@ std::vector<std::unique_ptr<ReturnData> > runAmiciSimulations(const Solver &solv
         auto mySolver = std::unique_ptr<Solver>(solver.clone());
         auto myModel = std::unique_ptr<Model>(model.clone());
 
+        /* if we fail we need to write empty return datas for the python
+         interface */
+        if (failed) {
+            ConditionContext conditionContext(myModel.get(), edatas[i]);
+            results[i] =
+                std::unique_ptr<ReturnData>(new ReturnData(solver, &model));
+        }
+
         results[i] = runAmiciSimulation(*mySolver, edatas[i], *myModel);
+
+        if (results[i]->status < 0 && failfast)
+            failed = true;
     }
 
     return results;

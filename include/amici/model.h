@@ -4,6 +4,7 @@
 #include "amici/abstract_model.h"
 #include "amici/defines.h"
 #include "amici/sundials_matrix_wrapper.h"
+#include "amici/vector.h"
 
 #include <memory>
 #include <vector>
@@ -55,6 +56,9 @@ class Model : public AbstractModel {
      * repeating elements
      * @param ndwdp number of nonzero elements in the p derivative of the
      * repeating elements
+     * @param ndxdotdw number of nonzero elements in the w derivative of xdot
+     * @param ndJydy number of nonzero elements in the y derivative of dJy
+     * (dimension nytrue)
      * @param nnz number of nonzero elements in Jacobian
      * @param ubw upper matrix bandwidth in the Jacobian
      * @param lbw lower matrix bandwidth in the Jacobian
@@ -68,8 +72,9 @@ class Model : public AbstractModel {
     Model(const int nx_rdata, const int nxtrue_rdata, const int nx_solver,
           const int nxtrue_solver, const int ny, const int nytrue, const int nz,
           const int nztrue, const int ne, const int nJ, const int nw,
-          const int ndwdx, const int ndwdp, const int nnz, const int ubw,
-          const int lbw, amici::SecondOrderMode o2mode,
+          const int ndwdx, const int ndwdp, const int ndxdotdw,
+          std::vector<int> ndJydy, const int nnz,
+          const int ubw, const int lbw, amici::SecondOrderMode o2mode,
           const std::vector<amici::realtype> &p, std::vector<amici::realtype> k,
           const std::vector<int> &plist, std::vector<amici::realtype> idlist,
           std::vector<int> z2event);
@@ -107,6 +112,8 @@ class Model : public AbstractModel {
     using AbstractModel::fdsigmazdp;
     using AbstractModel::fdwdp;
     using AbstractModel::fdwdx;
+    using AbstractModel::fdwdx_colptrs;
+    using AbstractModel::fdwdx_rowvals;
     using AbstractModel::fdydp;
     using AbstractModel::fdydx;
     using AbstractModel::fdzdp;
@@ -127,6 +134,29 @@ class Model : public AbstractModel {
     using AbstractModel::fx0_fixedParameters;
     using AbstractModel::fy;
     using AbstractModel::fz;
+
+    /**
+     * Model specific implementation of fdJydy colptrs
+     * @param indexptrs column pointers
+     * @param index ytrue index
+     */
+    virtual void fdJydy_colptrs(sunindextype *indexptrs, int index) {
+        throw AmiException("Requested functionality is not supported as %s "
+                           "is not implemented for this model!",
+                           __func__); // not implemented
+    }
+
+    /**
+     * Model specific implementation of fdxdotdw row vals
+     * @param indexptrs row val pointers
+     * @param index ytrue index
+     */
+    virtual void fdJydy_rowvals(sunindextype *indexptrs, int index) {
+        throw AmiException("Requested functionality is not supported as %s "
+                           "is not implemented for this model!",
+                           __func__); // not implemented
+    }
+
 
     /**
      * Expands conservation law for states
@@ -503,11 +533,11 @@ class Model : public AbstractModel {
     /**
      * Sensitivity of time-resolved measurement negative log-likelihood Jy
      * w.r.t. state variables
-     * @param dJydx pointer to vector with values of state derivative of Jy
+     * @param dJydx vector with values of state derivative of Jy
      * @param it timepoint index
      * @param edata pointer to experimental data instance
      */
-    void fdJydx(std::vector<realtype> *dJydx, const int it,
+    void fdJydx(std::vector<realtype> &dJydx, const int it,
                 const ExpData *edata);
 
     /**
@@ -847,6 +877,8 @@ class Model : public AbstractModel {
      * @brief Recurring terms in xdot, parameter derivative
      * @param t timepoint
      * @param x array with the states
+     * @return flag indicating whether dwdp will be returned in dense storage
+     * dense: true, sparse: false
      */
     void fdwdp(const realtype t, const realtype *x);
 
@@ -944,6 +976,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has parameter names set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether parameter names were set
      */
     virtual bool hasParameterNames() const;
@@ -956,6 +989,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has state names set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether state names were set
      */
     virtual bool hasStateNames() const;
@@ -968,6 +1002,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has fixed parameter names set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether fixed parameter names were set
      */
     virtual bool hasFixedParameterNames() const;
@@ -980,6 +1015,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has observable names set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether observabke names were set
      */
     virtual bool hasObservableNames() const;
@@ -992,6 +1028,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has parameter ids set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether parameter ids were set
      */
     virtual bool hasParameterIds() const;
@@ -1051,7 +1088,8 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has state ids set.
-     * @return
+     * Also returns true if the number of corresponding variables is just zero.
+     * @return boolean indicating whether state ids were set
      */
     virtual bool hasStateIds() const;
 
@@ -1063,6 +1101,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has fixed parameter ids set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether fixed parameter ids were set
      */
     virtual bool hasFixedParameterIds() const;
@@ -1075,6 +1114,7 @@ class Model : public AbstractModel {
 
     /**
      * @brief Reports whether the model has observable ids set.
+     * Also returns true if the number of corresponding variables is just zero.
      * @return boolean indicating whether observale ids were set
      */
     virtual bool hasObservableIds() const;
@@ -1127,6 +1167,14 @@ class Model : public AbstractModel {
      */
     bool getAlwaysCheckFinite() const;
 
+    /**
+     * @brief check whether the model was generated from python
+     * @return that
+     */
+    virtual bool wasPythonGenerated() const {
+        return false;
+    }
+
     /** number of states */
     const int nx_rdata;
     /** number of states in the unaugmented system */
@@ -1152,6 +1200,10 @@ class Model : public AbstractModel {
     const int ndwdx;
     /** number of derivatives of common expressions wrt p */
     const int ndwdp;
+    /** number of nonzero entries in dxdotdw */
+    const int ndxdotdw;
+    /** number of nonzero entries in dJydy */
+    std::vector<int> ndJydy;
     /** number of nonzero entries in jacobian */
     const int nnz;
     /** dimension of the augmented objective function for 2nd order ASA */
@@ -1170,35 +1222,43 @@ class Model : public AbstractModel {
 
     /** data standard deviation for current timepoint (dimension: ny) */
     std::vector<realtype> sigmay;
+
     /** parameter derivative of data standard deviation for current timepoint
      * (dimension: nplist x ny, row-major) */
     std::vector<realtype> dsigmaydp;
+
     /** event standard deviation for current timepoint (dimension: nz) */
     std::vector<realtype> sigmaz;
+
     /** parameter derivative of event standard deviation for current timepoint
      * (dimension: nplist x nz, row-major) */
     std::vector<realtype> dsigmazdp;
+
     /** parameter derivative of data likelihood for current timepoint
      * (dimension: nplist x nJ, row-major) */
     std::vector<realtype> dJydp;
+
     /** parameter derivative of event likelihood for current timepoint
      * (dimension: nplist x nJ, row-major) */
     std::vector<realtype> dJzdp;
 
     /** change in x at current timepoint (dimension: nx_solver) */
     std::vector<realtype> deltax;
+
     /** change in sx at current timepoint (dimension: nplist x nx_solver,
      * row-major) */
     std::vector<realtype> deltasx;
+
     /** change in xB at current timepoint (dimension: nJ x nxtrue_cl, row-major)
      */
     std::vector<realtype> deltaxB;
+
     /** change in qB at current timepoint (dimension: nJ x nplist, row-major) */
     std::vector<realtype> deltaqB;
 
     /** tempory storage of dxdotdp data across functions (dimension: nplist x
      * nx_solver, row-major) */
-    std::vector<realtype> dxdotdp;
+    AmiVectorArray dxdotdp;
 
   protected:
     /**
@@ -1326,15 +1386,31 @@ class Model : public AbstractModel {
     N_Vector computeX_pos(N_Vector x);
 
     /** Sparse Jacobian (dimension: nnz)*/
-    SlsMatWrapper J;
+    SUNMatrixWrapper J;
+
+    /** Sparse dxdotdw temporary storage (dimension: ndxdotdw) */
+    SUNMatrixWrapper dxdotdw;
+
+    /** Sparse dwdx temporary storage (dimension: ndwdx) */
+    SUNMatrixWrapper dwdx;
+
+    /** Dense Mass matrix (dimension: nx_solver x nx_solver) */
+    SUNMatrixWrapper M;
 
     /** current observable (dimension: nytrue) */
     std::vector<realtype> my;
+
     /** current event measurement (dimension: nztrue) */
     std::vector<realtype> mz;
+
+    /** Sparse observable derivative of data likelihood
+     * (dimension nytrue, nJ x ny, ordering = ?) */
+    std::vector<SUNMatrixWrapper> dJydy;
+
     /** observable derivative of data likelihood (dimension nJ x nytrue x ny,
-     * ordering = ?) */
-    std::vector<realtype> dJydy;
+      * ordering = ?) (only used if wasPythonGenerated()==false ) */
+    std::vector<realtype> dJydy_matlab;
+
     /** observable sigma derivative of data likelihood (dimension nJ x nytrue x
      * ny, ordering = ?) */
     std::vector<realtype> dJydsigma;
@@ -1342,45 +1418,51 @@ class Model : public AbstractModel {
     /** event ouput derivative of event likelihood (dimension nJ x nztrue x nz,
      * ordering = ?) */
     std::vector<realtype> dJzdz;
+
     /** event sigma derivative of event likelihood (dimension nJ x nztrue x nz,
      * ordering = ?) */
     std::vector<realtype> dJzdsigma;
+
     /** event ouput derivative of event likelihood at final timepoint (dimension
      * nJ x nztrue x nz, ordering = ?) */
     std::vector<realtype> dJrzdz;
+
     /** event sigma derivative of event likelihood at final timepoint (dimension
      * nJ x nztrue x nz, ordering = ?) */
     std::vector<realtype> dJrzdsigma;
+
     /** state derivative of event output (dimension: nz x nx_solver, ordering =
      * ?) */
     std::vector<realtype> dzdx;
+
     /** parameter derivative of event output (dimension: nz x nplist, ordering =
      * ?) */
     std::vector<realtype> dzdp;
+
     /** state derivative of event timepoint (dimension: nz x nx_solver, ordering
      * = ?) */
     std::vector<realtype> drzdx;
+
     /** parameter derivative of event timepoint (dimension: nz x nplist,
      * ordering = ?) */
     std::vector<realtype> drzdp;
+
     /** parameter derivative of observable (dimension: nplist x ny, row-major)
      */
     std::vector<realtype> dydp;
 
-    /** state derivative of observable (dimension: ny x nx_solver, ordering = ?)
-     */
+    /** state derivative of observable
+     * (dimension: nx_solver x ny, ordering = row-major) */
     std::vector<realtype> dydx;
+
     /** tempory storage of w data across functions (dimension: nw) */
     std::vector<realtype> w;
-    /** tempory storage of sparse dwdx data across functions (dimension: ndwdx)
-     */
-    std::vector<realtype> dwdx;
-    /** tempory storage of sparse dwdp data across functions (dimension: ndwdp)
+
+    /** tempory storage of sparse/dense dwdp data across functions
+     (dimension: ndwdp)
      */
     std::vector<realtype> dwdp;
-    /** tempory storage of mass matrix data across functions (dimension:
-     * nx_solver) */
-    std::vector<realtype> M;
+
     /** tempory storage of stau data across functions (dimension: nplist) */
     std::vector<realtype> stau;
 
@@ -1390,6 +1472,7 @@ class Model : public AbstractModel {
 
     /** tempory storage x_rdata (dimension: nx_rdata) */
     std::vector<realtype> x_rdata;
+
     /** tempory storage sx_rdata slice (dimension: nx_rdata) */
     std::vector<realtype> sx_rdata;
 
